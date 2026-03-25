@@ -35,7 +35,7 @@ python test_api.py
 ### 认证
 所有接口都需要在请求头中携带 `X-OpenViking-Bot-Key`，加密方式：
 ```javascript
-const ENCRYPT_KEY = 'askecho-experience-ai9176#!';
+const ENCRYPT_KEY = 'your key';
 const encrypt_key = aes.encrypt("ov-chat", ENCRYPT_KEY).toString();
 ```
 
