@@ -44,7 +44,7 @@ const encrypt_key = aes.encrypt("ov-chat", ENCRYPT_KEY).toString();
 ```bash
 curl -X POST http://localhost:1933/api/v1/bot/chat \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: kjWSxIHxa0hRk9C/0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
   -d '{
     "user_id": "test123",
     "query": "Openviking怎么使用"
@@ -56,7 +56,7 @@ curl -X POST http://localhost:1933/api/v1/bot/chat \
 ```bash
 curl -X POST http://localhost:1933/api/v1/ov/list/memory \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: kjWSxIHxa0hRk9C/0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
   -d '{"user_id": "test123"}'
 ```
 
@@ -65,7 +65,7 @@ curl -X POST http://localhost:1933/api/v1/ov/list/memory \
 ```bash
 curl -X POST http://localhost:1933/api/v1/ov/info/memory \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: kjWSxIHxa0hRk9C/0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
   -d '{
     "user_id": "test123",
     "uri": "/entities/mem_00ee38e0-6393-4293-9fc9-e6dfd8e282c1.md",
@@ -78,7 +78,7 @@ curl -X POST http://localhost:1933/api/v1/ov/info/memory \
 ```bash
 curl -X POST http://localhost:1933/api/v1/ov/delete/user \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: kjWSxIHxa0hRk9C/0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
   -d '{"user_id": "test123"}'
 ```
 
