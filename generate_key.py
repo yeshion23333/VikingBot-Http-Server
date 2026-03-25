@@ -10,5 +10,5 @@ def encrypt_token(data: str) -> str:
     return base64.b64encode(encrypted).decode('utf-8')
 
 if __name__ == "__main__":
-    encrypted_key = encrypt_token("ov-chat")
+    encrypted_key = encrypt_token("your-secret-key")
     print(f"X-OpenViking-Bot-Key: {encrypted_key}")
