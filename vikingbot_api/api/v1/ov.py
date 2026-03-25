@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Request
-from pip._internal import req
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from vikingbot_api.utils.response import success_response, error_response, BaseResponse
