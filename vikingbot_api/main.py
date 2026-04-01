@@ -110,4 +110,17 @@ if __name__ == "__main__":
     import uvicorn
     host = get_config("server.host", "0.0.0.0")
     port = get_config("server.port", 1995)
-    uvicorn.run("vikingbot_api.main:app", host=host, port=port, reload=True)
+
+    # SSL configuration
+    ssl_enabled = get_config("server.ssl.enabled", False)
+    ssl_certfile = get_config("server.ssl.cert_file", None) if ssl_enabled else None
+    ssl_keyfile = get_config("server.ssl.key_file", None) if ssl_enabled else None
+
+    uvicorn.run(
+        "vikingbot_api.main:app",
+        host=host,
+        port=port,
+        reload=True,
+        ssl_certfile=ssl_certfile,
+        ssl_keyfile=ssl_keyfile
+    )

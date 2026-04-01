@@ -7,7 +7,9 @@ wheels/
 *.egg-info
 doc/
 config.json
+test.py
 .idea
+
 
 # Virtual environments
 .venv
