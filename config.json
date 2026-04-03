@@ -1,12 +1,12 @@
 {
   "openviking": {
-    "base_url": "http://localhost:1933",
-    "api_key": "test",
+    "base_url": "http://118.196.120.237:1933",
+    "api_key": "dt-test-key",
     "account_id": "default"
   },
   "server": {
-    "port": 1995,
-    "host": "127.0.0.1",
+    "port": 8000,
+    "host": "0.0.0.0",
     "log_level": "INFO",
     "ssl": {
       "enabled": false
