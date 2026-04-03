@@ -6,7 +6,6 @@ dist/
 wheels/
 *.egg-info
 doc/
-config.json
 test.py
 .idea
 
