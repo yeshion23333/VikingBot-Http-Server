@@ -7,6 +7,7 @@ cd "$SCRIPT_DIR"
 
 # 配置
 APP_MODULE="vikingbot_api.main:app"
+APP_FILE="vikingbot_api/main.py"
 HOST="0.0.0.0"
 PORT="8000"
 LOG_FILE="server.log"
@@ -18,8 +19,18 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# 查找 Python 解释器
+find_python() {
+    if command -v python3 &> /dev/null; then
+        echo "python3"
+    elif command -v python &> /dev/null; then
+        echo "python"
+    else
+        echo ""
+    fi
+}
 
-
+PYTHON_CMD=$(find_python)
 
 # 检查服务是否正在运行
 is_running() {
@@ -32,18 +43,38 @@ is_running() {
     return 1
 }
 
+# 检查 Python 和依赖
+check_dependencies() {
+    if [ -z "$PYTHON_CMD" ]; then
+        echo -e "${RED}错误: 未找到 Python 解释器${NC}"
+        exit 1
+    fi
+
+    if ! $PYTHON_CMD -c "import uvicorn" 2>/dev/null; then
+        echo -e "${RED}错误: 未找到 uvicorn 模块${NC}"
+        echo "请运行: $PYTHON_CMD -m pip install -r requirements.txt"
+        exit 1
+    fi
+
+    if ! $PYTHON_CMD -c "import fastapi" 2>/dev/null; then
+        echo -e "${RED}错误: 未找到 fastapi 模块${NC}"
+        echo "请运行: $PYTHON_CMD -m pip install -r requirements.txt"
+        exit 1
+    fi
+}
+
 # 启动服务（前台模式）
 start_foreground() {
+    check_dependencies
     echo -e "${GREEN}启动 Vikingbot API 服务（前台模式）...${NC}"
+    echo "Python: $PYTHON_CMD"
     echo "访问地址: http://$HOST:$PORT"
     echo "健康检查: http://$HOST:$PORT/health"
     echo "按 Ctrl+C 停止服务"
     echo ""
 
-    uvicorn "$APP_MODULE" \
-        --host "$HOST" \
-        --port "$PORT" \
-        --reload
+    # 直接运行 Python 脚本，不使用 reload，避免子进程问题
+    $PYTHON_CMD -m uvicorn "$APP_MODULE" --host "$HOST" --port "$PORT"
 }
 
 # 启动服务（后台模式）
@@ -53,12 +84,11 @@ start_background() {
         return 1
     fi
 
+    check_dependencies
     echo -e "${GREEN}启动 Vikingbot API 服务（后台模式）...${NC}"
+    echo "Python: $PYTHON_CMD"
 
-    nohup uvicorn "$APP_MODULE" \
-        --host "$HOST" \
-        --port "$PORT" \
-        --reload \
+    nohup $PYTHON_CMD "$APP_FILE" \
         > "$LOG_FILE" 2>&1 &
 
     local pid=$!

@@ -1,27 +1,52 @@
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
-import base64
 from fastapi import Request, HTTPException
+from starlette.responses import JSONResponse
 
-ENCRYPT_KEY = b'askecho-experience-ai9176#!'[:16]  # AES requires 16/24/32 bytes key
+from vikingbot_api.core.security import (
+    decrypt_auth_token,
+    get_auth_encryption_key,
+)
+from vikingbot_api.utils.response import error_response
+
+PUBLIC_PATHS = {"/health", "/metrics"}
+
+
+def _unauthorized_response(message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content=error_response("unauthorized", message).model_dump(),
+    )
+
 
 def decrypt_token(encrypted_data: str) -> str:
+    encryption_key = get_auth_encryption_key()
     try:
-        data = base64.b64decode(encrypted_data)
-        cipher = AES.new(ENCRYPT_KEY, AES.MODE_ECB)
-        decrypted = unpad(cipher.decrypt(data), AES.block_size)
-        return decrypted.decode('utf-8')
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        return decrypt_auth_token(encrypted_data, encryption_key)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token",
+        ) from exc
+
 
 async def auth_middleware(request: Request, call_next):
+    # Health checks and Prometheus scrapes must work without an API token.
+    if (
+        request.method == "OPTIONS"
+        or request.url.path.rstrip("/") in PUBLIC_PATHS
+    ):
+        return await call_next(request)
+
     auth_key = request.headers.get("X-OpenViking-Bot-Key")
     if not auth_key:
-        raise HTTPException(status_code=401, detail="X-OpenViking-Bot-Key header is required")
+        return _unauthorized_response("X-OpenViking-Bot-Key header is required")
 
-    decrypted = decrypt_token(auth_key)
+    try:
+        decrypted = decrypt_token(auth_key)
+    except HTTPException as exc:
+        return _unauthorized_response(str(exc.detail))
+
     if decrypted != "ov-chat":
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        return _unauthorized_response("Invalid authentication token")
 
     response = await call_next(request)
     return response

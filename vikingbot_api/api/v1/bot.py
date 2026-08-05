@@ -1,13 +1,14 @@
 import httpx
+import logging
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from vikingbot_api.core.config import get_config
 from vikingbot_api.core.limiter import limiter, user_limiter
-from vikingbot_api.core.openviking_client import openviking_client
 from vikingbot_api.utils.response import success_response, error_response, BaseResponse
 
 router = APIRouter(prefix="/bot", tags=["bot"])
+logger = logging.getLogger(__name__)
 
 # Bot API configuration
 def get_bot_api_url() -> str:
@@ -29,10 +30,8 @@ _bot_client = httpx.AsyncClient(timeout=60.0)
 @user_limiter.limit("30/minute")
 async def chat(request: Request, chat_request: ChatRequest):
     try:
-        # Ensure user exists in OpenViking, register if not
-        await openviking_client.ensure_user_exists(chat_request.user_id)
-
-        # Generate session_id if not provided, use user_id + uuid
+        # Current OpenViking treats the external user_id as a peer id.
+        # A peer does not need to be pre-created as an OpenViking user.
         session_id = f"playground_default_{chat_request.user_id}"
 
         # Call bot API via HTTP
@@ -40,13 +39,17 @@ async def chat(request: Request, chat_request: ChatRequest):
             "message": chat_request.query,
             "session_id": session_id,
             "user_id": chat_request.user_id,
-            "stream": False
+            "stream": False,
         }
 
         response = await _bot_client.post(
             get_bot_api_url(),
             json=bot_request,
-            headers={"Content-Type": "application/json"}
+            headers={
+                "Content-Type": "application/json",
+                "X-API-Key": get_config("openviking.api_key", ""),
+                "X-OpenViking-Actor-Peer": chat_request.user_id,
+            }
         )
         response.raise_for_status()
         bot_response = response.json()
@@ -58,6 +61,10 @@ async def chat(request: Request, chat_request: ChatRequest):
             "text": response_text
         })
     except httpx.HTTPError as e:
+        request.state.outcome = "business_error"
+        logger.exception("Bot API request failed")
         return error_response("internal_error", f"Bot API request failed: {str(e)}")
     except Exception as e:
+        request.state.outcome = "business_error"
+        logger.exception("Unexpected chat error")
         return error_response("internal_error", str(e))

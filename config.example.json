@@ -1,0 +1,20 @@
+{
+  "openviking": {
+    "base_url": "http://localhost:1933",
+    "api_key": "",
+    "account_id": "default"
+  },
+  "server": {
+    "port": 1933,
+    "host": "0.0.0.0",
+    "log_level": "INFO",
+    "auth": {
+      "encrypt_key": ""
+    },
+    "ssl": {
+      "enabled": false,
+      "cert_file": "cert.pem",
+      "key_file": "key.pem"
+    }
+  }
+}

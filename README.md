@@ -9,6 +9,8 @@ Vikingbot HTTP API 服务，提供对话接口和 OpenViking 内存管理接口�
 ```bash
 source .venv/bin/activate
 pip install -r requirements.txt
+cp config.example.json config.json
+# 编辑 config.json，填写本地 OpenViking 和鉴权配置
 ```
 
 ### 2. 启动服务
@@ -30,13 +32,37 @@ pip install requests
 python test_api.py
 ```
 
+### 4. 监控指标
+
+服务通过无需鉴权的 `/metrics` 暴露 Prometheus 指标：
+
+```bash
+curl http://localhost:1933/metrics/
+```
+
+主要指标：
+
+- `vikingbot_http_requests_total`：按请求方法、路由、HTTP 状态码和业务结果统计请求量
+- `vikingbot_http_request_duration_seconds`：请求耗时直方图
+- `vikingbot_http_requests_in_progress`：当前正在处理的请求数
+
+业务异常目前保持兼容，仍可能返回 HTTP 200，但会记录为
+`outcome="business_error"`，可用于计算真实业务错误率。
+
 ## API 接口
 
 ### 认证
-所有接口都需要在请求头中携带 `X-OpenViking-Bot-Key`，加密方式：
-```javascript
-const ENCRYPT_KEY = 'your key';
-const encrypt_key = aes.encrypt("ov-chat", ENCRYPT_KEY).toString();
+除 `/health` 和 `/metrics` 外，业务接口都需要在请求头中携带
+`X-OpenViking-Bot-Key`。鉴权主密钥必须通过环境变量
+`VIKINGBOT_ENCRYPT_KEY` 或本地 `config.json` 中的
+`server.auth.encrypt_key` 配置，不要提交到 Git：
+
+```bash
+# 生成一个 32 字节的随机主密钥
+export VIKINGBOT_ENCRYPT_KEY="$(python -c 'import secrets; print(secrets.token_hex(16))')"
+
+# 使用同一个主密钥生成请求 Token
+export VIKINGBOT_AUTH_TOKEN="$(python generate_token.py | cut -d ' ' -f 2-)"
 ```
 
 ### 1. 聊天接口
@@ -44,19 +70,19 @@ const encrypt_key = aes.encrypt("ov-chat", ENCRYPT_KEY).toString();
 ```bash
 curl -X POST http://localhost:1933/api/v1/bot/chat \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: ${VIKINGBOT_AUTH_TOKEN}" \
   -d '{
     "user_id": "test123",
     "query": "Openviking怎么使用"
   }'
 ```
 
-### 2. 获取内存列表
+### 2. 获取 Peer 内存列表
 **POST /api/v1/ov/list/memory**
 ```bash
 curl -X POST http://localhost:1933/api/v1/ov/list/memory \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: ${VIKINGBOT_AUTH_TOKEN}" \
   -d '{"user_id": "test123"}'
 ```
 
@@ -65,7 +91,7 @@ curl -X POST http://localhost:1933/api/v1/ov/list/memory \
 ```bash
 curl -X POST http://localhost:1933/api/v1/ov/info/memory \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: ${VIKINGBOT_AUTH_TOKEN}" \
   -d '{
     "user_id": "test123",
     "uri": "/entities/mem_00ee38e0-6393-4293-9fc9-e6dfd8e282c1.md",
@@ -73,12 +99,12 @@ curl -X POST http://localhost:1933/api/v1/ov/info/memory \
   }'
 ```
 
-### 4. 删除用户
+### 4. 删除 Peer 内存
 **POST /api/v1/ov/delete/user**
 ```bash
 curl -X POST http://localhost:1933/api/v1/ov/delete/user \
   -H "Content-Type: application/json" \
-  -H "X-OpenViking-Bot-Key: /0gSFvA==" \
+  -H "X-OpenViking-Bot-Key: ${VIKINGBOT_AUTH_TOKEN}" \
   -d '{"user_id": "test123"}'
 ```
 
@@ -115,5 +141,6 @@ ov-bot-server/
 
 ## 后续开发
 当前版本返回的是模拟数据，需要接入实际的 Vikingbot 和 OpenViking 实现：
-1. 在 `app/api/v1/bot.py` 中实现真实的聊天逻辑
-2. 在 `app/api/v1/ov.py` 中实现真实的内存管理逻辑
+1. `user_id` 会作为 OpenViking peer id 使用，不再注册或校验 OpenViking user。
+2. 内存路径使用 `viking://user/peers/{user_id}/memories/`，并向 OpenViking 转发 `X-OpenViking-Actor-Peer: {user_id}`。
+3. `/api/v1/ov/delete/user` 为兼容旧调用保留名称，实际删除的是该 peer 的 memory 目录。

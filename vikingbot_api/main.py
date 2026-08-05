@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from prometheus_client import make_asgi_app
 from slowapi.errors import RateLimitExceeded
 from starlette.responses import JSONResponse
 
 from vikingbot_api.core.auth import auth_middleware
 from vikingbot_api.core.limiter import limiter, user_limiter, concurrency_limiter
+from vikingbot_api.core.metrics import record_request_metrics
 from vikingbot_api.core.config import get_config
 from vikingbot_api.utils.response import error_response
 from vikingbot_api.api.v1.bot import router as bot_router
@@ -61,7 +63,10 @@ app.state.limiter = limiter
 app.state.user_limiter = user_limiter
 app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
     status_code=429,
-    content=error_response("limit_error", "Rate limit exceeded, please try again later").dict()
+    content=error_response(
+        "limit_error",
+        "Rate limit exceeded, please try again later",
+    ).model_dump(),
 ))
 
 # Add validation error handler
@@ -69,7 +74,10 @@ app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=400,
-        content=error_response("invalid_params", "Invalid request parameters").dict()
+        content=error_response(
+            "invalid_params",
+            "Invalid request parameters",
+        ).model_dump(),
     )
 
 # Add middleware
@@ -97,10 +105,16 @@ async def auth_middleware_wrapper(request: Request, call_next):
 async def concurrency_middleware_wrapper(request: Request, call_next):
     return await concurrency_limiter(request, call_next)
 
+
+@app.middleware("http")
+async def prometheus_metrics_middleware(request: Request, call_next):
+    return await record_request_metrics(request, call_next)
+
 # Register routes
 api_prefix = "/api/v1"
 app.include_router(bot_router, prefix=api_prefix)
 app.include_router(ov_router, prefix=api_prefix)
+app.mount("/metrics", make_asgi_app())
 
 @app.get("/health")
 async def health_check():
@@ -109,18 +123,19 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     host = get_config("server.host", "0.0.0.0")
-    port = get_config("server.port", 1995)
+    port = get_config("server.port", 8000)
 
     # SSL configuration
     ssl_enabled = get_config("server.ssl.enabled", False)
     ssl_certfile = get_config("server.ssl.cert_file", None) if ssl_enabled else None
     ssl_keyfile = get_config("server.ssl.key_file", None) if ssl_enabled else None
 
+    # FaaS 环境不使用 reload，避免子进程导入问题
     uvicorn.run(
         "vikingbot_api.main:app",
         host=host,
         port=port,
-        reload=True,
+        reload=False,
         ssl_certfile=ssl_certfile,
         ssl_keyfile=ssl_keyfile
     )

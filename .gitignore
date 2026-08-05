@@ -1,14 +1,50 @@
+# Secrets and machine-local configuration
+config.json
+config.*.json
+!config.example.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Runtime files
+*.log
+*.pid
+
 # Python-generated files
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local-only project files
 doc/
 test.py
-.idea
-
 
 # Virtual environments
-.venv
+.venv/
+venv/
+env/
+
+# Editors and local agent configuration
+.idea/
+.vscode/
+.claude/
+.codex/
+
+# OS files
+.DS_Store
+Thumbs.db

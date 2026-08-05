@@ -1,10 +1,11 @@
 import requests
 import json
+import os
 
-BASE_URL = "http://localhost:1933"
+BASE_URL = os.environ.get("VIKINGBOT_API_URL", "http://localhost:1933")
 HEADERS = {
     "Content-Type": "application/json",
-    "X-OpenViking-Bot-Key": "kjWSxIHxa0hRk9C/0gSFvA=="
+    "X-OpenViking-Bot-Key": os.environ.get("VIKINGBOT_AUTH_TOKEN", ""),
 }
 
 def test_health():
