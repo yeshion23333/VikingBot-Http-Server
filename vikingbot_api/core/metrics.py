@@ -7,7 +7,14 @@ from prometheus_client import Counter, Gauge, Histogram
 HTTP_REQUESTS = Counter(
     "vikingbot_http_requests_total",
     "Total number of HTTP requests",
-    ["method", "route", "status_code", "outcome"],
+    [
+        "method",
+        "route",
+        "status_code",
+        "outcome",
+        "error_type",
+        "upstream_status_code",
+    ],
 )
 
 HTTP_REQUEST_DURATION = Histogram(
@@ -69,12 +76,21 @@ async def record_request_metrics(request: Request, call_next):
             else:
                 outcome = "success"
 
+        error_type = getattr(request.state, "error_type", None)
+        if not error_type:
+            error_type = "none" if outcome == "success" else outcome
+        upstream_status_code = str(
+            getattr(request.state, "upstream_status_code", "none") or "none"
+        )
+
         route = _route_template(request)
         HTTP_REQUESTS.labels(
             method=method,
             route=route,
             status_code=str(status_code),
             outcome=outcome,
+            error_type=error_type,
+            upstream_status_code=upstream_status_code,
         ).inc()
         HTTP_REQUEST_DURATION.labels(
             method=method,

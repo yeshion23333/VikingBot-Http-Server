@@ -28,22 +28,28 @@ async def concurrency_limiter(request: Request, call_next):
 
     if path == "/api/v1/bot/chat":
         if chat_semaphore.locked():
+            request.state.error_type = "concurrency_limit_error"
             return JSONResponse(
                 status_code=429,
                 content=error_response(
                     "limit_error",
                     "Chat service is busy, please try again later",
+                    request_id=str(getattr(request.state, "request_id", "")),
+                    error_type="concurrency_limit_error",
                 ).model_dump(),
             )
         async with chat_semaphore:
             response = await call_next(request)
     else:
         if ov_semaphore.locked():
+            request.state.error_type = "concurrency_limit_error"
             return JSONResponse(
                 status_code=429,
                 content=error_response(
                     "limit_error",
                     "Service is busy, please try again later",
+                    request_id=str(getattr(request.state, "request_id", "")),
+                    error_type="concurrency_limit_error",
                 ).model_dump(),
             )
         async with ov_semaphore:

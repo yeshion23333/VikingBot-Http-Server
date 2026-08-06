@@ -42,12 +42,14 @@ curl http://localhost:1933/metrics/
 
 主要指标：
 
-- `vikingbot_http_requests_total`：按请求方法、路由、HTTP 状态码和业务结果统计请求量
+- `vikingbot_http_requests_total`：按请求方法、路由、HTTP 状态码、业务结果、`error_type` 和 `upstream_status_code` 统计请求量
 - `vikingbot_http_request_duration_seconds`：请求耗时直方图
 - `vikingbot_http_requests_in_progress`：当前正在处理的请求数
 
 业务异常目前保持兼容，仍可能返回 HTTP 200，但会记录为
-`outcome="business_error"`，可用于计算真实业务错误率。
+`outcome="business_error"`，可用于计算真实业务错误率。`error_type`
+使用固定枚举（例如 `upstream_read_timeout`、`upstream_http_5xx`）展示可聚合的具体错误类别；完整错误正文不会写入 Prometheus，而是通过响应中的
+`request_id` 到函数日志中查询。
 
 ## API 接口
 
@@ -71,6 +73,11 @@ export VIKINGBOT_AUTH_TOKEN="$(python generate_token.py | cut -d ' ' -f 2-)"
 OpenViking Chat 的响应读取超时由
 `openviking.chat_timeout_seconds` 配置，默认 600 秒。API Gateway、veFaaS
 函数和调用方的超时时间也需要大于该值，否则外层会先取消请求。
+
+每次 Chat 响应都会在响应体的 `request_id` 字段和 `X-Request-ID`
+响应头中返回请求 ID。发生错误时，日志会记录同一个 request ID、异常类型、
+OpenViking 状态码和最多 2048 个字符的响应正文；响应体的 `error_type`
+可直接用于区分上游读取超时、连接失败、4xx、5xx 和非法响应。
 
 ```bash
 curl -X POST http://localhost:1933/api/v1/bot/chat \

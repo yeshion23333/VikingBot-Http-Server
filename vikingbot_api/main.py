@@ -1,6 +1,7 @@
 import logging
 import time
 from contextlib import asynccontextmanager
+from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -17,6 +18,28 @@ from vikingbot_api.api.v1.bot import router as bot_router
 from vikingbot_api.api.v1.ov import router as ov_router
 
 logger = logging.getLogger(__name__)
+REQUEST_ID_HEADERS = (
+    "x-request-id",
+    "x-faas-request-id",
+    "x-bytefaas-request-id",
+    "x-tt-logid",
+    "x-bd-trace-id",
+)
+
+
+def _get_or_create_request_id(request: Request) -> str:
+    for header_name in REQUEST_ID_HEADERS:
+        value = request.headers.get(header_name, "").strip()
+        if value:
+            # Prevent untrusted headers from injecting extra log lines.
+            safe_value = "".join(
+                character
+                for character in value
+                if character.isalnum() or character in "-_.:"
+            )
+            if safe_value:
+                return safe_value[:128]
+    return str(uuid4())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -56,27 +79,38 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
 
 # Add rate limiter to app
 app.state.limiter = limiter
 app.state.user_limiter = user_limiter
-app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
-    status_code=429,
-    content=error_response(
-        "limit_error",
-        "Rate limit exceeded, please try again later",
-    ).model_dump(),
-))
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    request.state.error_type = "rate_limit_error"
+    return JSONResponse(
+        status_code=429,
+        content=error_response(
+            "limit_error",
+            "Rate limit exceeded, please try again later",
+            request_id=str(getattr(request.state, "request_id", "")),
+            error_type="rate_limit_error",
+        ).model_dump(),
+    )
 
 # Add validation error handler
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    request.state.error_type = "validation_error"
     return JSONResponse(
         status_code=400,
         content=error_response(
             "invalid_params",
             "Invalid request parameters",
+            request_id=str(getattr(request.state, "request_id", "")),
+            error_type="validation_error",
         ).model_dump(),
     )
 
@@ -84,17 +118,22 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next):
     start_time = time.time()
-    client_ip = request.client.host if request.client else "unknown"
-    user_agent = request.headers.get("user-agent", "unknown")
-
 
     try:
         response = await call_next(request)
-        process_time = (time.time() - start_time) * 1000
         return response
     except Exception as e:
         process_time = (time.time() - start_time) * 1000
-        logger.error(f"Request failed: {request.method} {request.url.path} - Error: {str(e)} - Duration: {process_time:.2f}ms")
+        logger.exception(
+            "Request failed request_id=%s method=%s path=%s "
+            "exception_type=%s error=%r duration_ms=%.2f",
+            getattr(request.state, "request_id", "unknown"),
+            request.method,
+            request.url.path,
+            type(e).__name__,
+            str(e),
+            process_time,
+        )
         raise
 
 @app.middleware("http")
@@ -109,6 +148,15 @@ async def concurrency_middleware_wrapper(request: Request, call_next):
 @app.middleware("http")
 async def prometheus_metrics_middleware(request: Request, call_next):
     return await record_request_metrics(request, call_next)
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = _get_or_create_request_id(request)
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # Register routes
 api_prefix = "/api/v1"

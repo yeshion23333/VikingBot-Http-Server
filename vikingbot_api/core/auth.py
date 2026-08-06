@@ -10,10 +10,16 @@ from vikingbot_api.utils.response import error_response
 PUBLIC_PATHS = {"/health", "/metrics"}
 
 
-def _unauthorized_response(message: str) -> JSONResponse:
+def _unauthorized_response(request: Request, message: str) -> JSONResponse:
+    request.state.error_type = "authentication_error"
     return JSONResponse(
         status_code=401,
-        content=error_response("unauthorized", message).model_dump(),
+        content=error_response(
+            "unauthorized",
+            message,
+            request_id=str(getattr(request.state, "request_id", "")),
+            error_type="authentication_error",
+        ).model_dump(),
     )
 
 
@@ -38,15 +44,18 @@ async def auth_middleware(request: Request, call_next):
 
     auth_key = request.headers.get("X-OpenViking-Bot-Key")
     if not auth_key:
-        return _unauthorized_response("X-OpenViking-Bot-Key header is required")
+        return _unauthorized_response(
+            request,
+            "X-OpenViking-Bot-Key header is required",
+        )
 
     try:
         decrypted = decrypt_token(auth_key)
     except HTTPException as exc:
-        return _unauthorized_response(str(exc.detail))
+        return _unauthorized_response(request, str(exc.detail))
 
     if decrypted != "ov-chat":
-        return _unauthorized_response("Invalid authentication token")
+        return _unauthorized_response(request, "Invalid authentication token")
 
     response = await call_next(request)
     return response
