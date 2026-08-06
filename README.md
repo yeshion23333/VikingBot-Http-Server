@@ -67,6 +67,11 @@ export VIKINGBOT_AUTH_TOKEN="$(python generate_token.py | cut -d ' ' -f 2-)"
 
 ### 1. 聊天接口
 **POST /api/v1/bot/chat**
+
+OpenViking Chat 的响应读取超时由
+`openviking.chat_timeout_seconds` 配置，默认 600 秒。API Gateway、veFaaS
+函数和调用方的超时时间也需要大于该值，否则外层会先取消请求。
+
 ```bash
 curl -X POST http://localhost:1933/api/v1/bot/chat \
   -H "Content-Type: application/json" \

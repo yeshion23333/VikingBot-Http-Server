@@ -22,8 +22,17 @@ class ChatRequest(BaseModel):
 class ChatResult(BaseModel):
     text: str
 
-# Create a global httpx client
-_bot_client = httpx.AsyncClient(timeout=60.0)
+# Chat responses may include model inference and memory retrieval, so they need a
+# much longer read timeout than ordinary API calls. Keep connection/write/pool
+# timeouts short so unreachable or overloaded upstreams still fail promptly.
+_bot_client = httpx.AsyncClient(
+    timeout=httpx.Timeout(
+        connect=10.0,
+        read=float(get_config("openviking.chat_timeout_seconds", 600.0)),
+        write=30.0,
+        pool=30.0,
+    )
+)
 
 @router.post("/chat", response_model=BaseResponse[ChatResult])
 @limiter.limit("60/minute")

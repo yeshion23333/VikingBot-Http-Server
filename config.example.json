@@ -2,7 +2,8 @@
   "openviking": {
     "base_url": "http://localhost:1933",
     "api_key": "",
-    "account_id": "default"
+    "account_id": "default",
+    "chat_timeout_seconds": 600
   },
   "server": {
     "port": 1933,
